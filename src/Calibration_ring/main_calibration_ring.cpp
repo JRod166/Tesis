@@ -175,7 +175,7 @@ int main( int argc, char** argv ) {
 	int pattern_rows = 4;
 	int pattern_cols = 5;
 	//float square_size = 44.3;
-	float square_size = 1;
+	float square_size = 5;
 	int** quadBins = new int* [n_rows];
 	for (int y_block = 0; y_block < n_rows; ++y_block) {
 		quadBins[y_block] = new int[n_columns];
@@ -270,6 +270,7 @@ int main( int argc, char** argv ) {
 	{
 		cout << camera_calibration.tvecs[i] << endl;
 	}*/
+	//WRITE XML TO TEST!
 	nextPose(pattern_cols, pattern_rows, square_size, camera_calibration.rvecs,camera_calibration.tvecs, camera_calibration.camera_matrix, camera_calibration.dist_coeffs);
 	cout << "fin del programa" << endl;
     return 0;

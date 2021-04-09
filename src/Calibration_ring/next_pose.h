@@ -254,7 +254,12 @@ bool build_Jacobian(Mat& A, Mat& B, vector<Mat> S, Mat corners, Mat camera_matri
 	cout << "end jacobian" << endl;
 	return true;
 }
-
+double ang2cornerness(double x)
+{
+	double res;
+	res = 1404.50760 * pow(x, 2) - 49.2631560 * pow(x, 3) + 0.94482 * pow(x, 4) - 0.0093798 * pow(x, 5) + 0.0000455668 * pow(x, 6) - 8.6160 * 1e-8 * pow(x, 7);
+	return res;
+}
 bool build_autocorrelation_matrix(Mat& ACMat, vector<Mat> S, Mat camera_matrix, vector<Mat> rvecs, vector<Mat>tvecs, Mat dist_coeffs, int board_Width, int board_Height, int num_frame)
 {
 	int dist_type, num_intrinsic;
@@ -359,7 +364,67 @@ bool build_autocorrelation_matrix(Mat& ACMat, vector<Mat> S, Mat camera_matrix, 
 
 	ACMat = Mat::zeros(cv::Size(2 * board_Height * board_Width * num_frame, 2 * board_Height * board_Width * num_frame), CV_64FC1);
 
-	//for (int m=1;m<= num_frame)
+	for (int m = 1; m <= num_frame; m++) {
+		int initial_pose, final_pose, act_frame;
+		act_frame = m - 1;
+		initial_pose = (m - 1) * 2 * board_Height * board_Width;
+		final_pose = (m * 2 * board_Height * board_Width) - 1;
+		Mat heightVec, widthVec;
+		for (int i = 1; i <= board_Height; i++) {
+			for (int j = 1; j <= board_Width; j++) {
+				int pos = (j + (i - 1) * board_Width) - 1;
+				if (j != board_Width)
+				{
+					heightVec = P[act_frame].col(pos + 1) - P[act_frame].col(pos);
+				}
+				else {
+					heightVec = P[act_frame].col(pos) - P[act_frame].col(pos - 1);
+				}
+				if (i != board_Height) {
+					widthVec = P[act_frame].col(pos + board_Width) - P[act_frame].col(pos);
+				}
+				else {
+					widthVec = P[act_frame].col(pos) - P[act_frame].col(pos - board_Width);
+				}
+				double heightNormal, widthNormal, dot, ang, s, AC_cur_max, AC_cur_min;
+				heightNormal = norm(heightVec);
+				widthNormal = norm(widthVec);
+				Mat heightRes, widthRes, v, R_cur, AC_cur, aux_mat;
+				heightRes = heightVec / heightNormal;
+				widthRes = widthVec / widthNormal;
+				R_cur = Mat::zeros(cv::Size(2, 2), CV_64FC1);
+				AC_cur = Mat::zeros(cv::Size(2, 2), CV_64FC1);
+				dot = heightRes.dot(widthRes);
+				ang = acos(dot) * 180 / CV_PI;
+				if (ang > 90) {
+					v = heightRes + widthRes;
+				}
+				else {
+					v = heightRes - widthRes;
+				}
+				v = v / norm(v);
+				R_cur.at<double>(0, 0) = v.at<double>(0, 0);
+				R_cur.at<double>(0, 1) = v.at<double>(1, 0) * -1;
+				R_cur.at<double>(1, 0) = v.at<double>(1, 0);
+				R_cur.at<double>(1, 1) = v.at<double>(0, 0);
+				s = 5e+5;
+				AC_cur_max = max(ang2cornerness(180 - ang), ang2cornerness(ang));
+				AC_cur_min = min(ang2cornerness(180 - ang), ang2cornerness(ang));
+				AC_cur.at<double>(0, 0) = AC_cur_max / s;
+				AC_cur.at<double>(0, 1) = 0;
+				AC_cur.at<double>(1, 0) = 0;
+				AC_cur.at<double>(1, 1) = AC_cur_min / s;
+				aux_mat = R_cur * AC_cur * (R_cur.t());
+				pos = initial_pose + (pos * 2);
+				ACMat.at<double>(pos, pos) = aux_mat.at<double>(0, 0);
+				ACMat.at<double>(pos, pos + 1) = aux_mat.at<double>(0, 1);
+				ACMat.at<double>(pos + 1, pos) = aux_mat.at<double>(1, 0);
+				ACMat.at<double>(pos + 1, pos + 1) = aux_mat.at<double>(1, 1);
+			}
+		}
+
+	}
+
 
 	return true	;
 }
@@ -405,7 +470,7 @@ void nextPose(int pattern_cols, int pattern_rows, float square_size, vector<Mat>
 	B = B.t();
 	Mat ACMat = Mat::eye(A.size().height, A.size().height, CV_64FC1);
 
-	build_autocorrelation_matrix(ACMat, S, camera_matrix, rvecs, tvecs, dist_coeffs, pattern_cols, pattern_rows, numberOfFrames);
+	build_autocorrelation_matrix(ACMat, S, camera_matrix, rvecs, tvecs, dist_coeffs, pattern_rows, pattern_cols, numberOfFrames);
 
 	return;
 }
